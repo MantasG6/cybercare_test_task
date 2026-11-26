@@ -1,0 +1,16 @@
+[project]
+name = "cybercare-events"
+version = "0.1.0"
+description = "Event propagator and event consumer services"
+requires-python = ">=3.12"
+dependencies = []
+
+[tool.poetry]
+packages = [{ include = "consumer" }, { include = "propagator" }]
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.3"
+
+[build-system]
+requires = ["poetry-core>=2.0"]
+build-backend = "poetry.core.masonry.api"
