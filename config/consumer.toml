@@ -5,3 +5,7 @@ port = 8000
 uri = "mongodb://localhost:27017"
 database = "events"
 collection = "events"
+
+[rate_limit]
+requests_per_second = 10
+burst = 20
