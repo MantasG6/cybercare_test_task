@@ -7,3 +7,4 @@
 - **Interval**: the number of seconds between two sends.
 - **Consumer**: the service that receives Events on `/event` and stores Valid Events.
 - **Stored Event**: a Valid Event plus the time the Consumer received it.
+- **Rate Limit**: the global cap on `/event` requests the Consumer accepts, set as requests per second with a burst; requests over it get `429` and are not stored.
