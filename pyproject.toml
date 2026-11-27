@@ -3,7 +3,7 @@ name = "cybercare-events"
 version = "0.1.0"
 description = "Event propagator and event consumer services"
 requires-python = ">=3.12"
-dependencies = ["pydantic (>=2.14.4,<3.0.0)", "pymongo (>=4.20.2,<5.0.0)"]
+dependencies = ["pydantic (>=2.14.4,<3.0.0)", "pymongo (>=4.20.2,<5.0.0)", "fastapi (>=0.165.0,<0.166.0)"]
 
 [tool.poetry]
 packages = [{ include = "consumer" }, { include = "propagator" }]
@@ -11,6 +11,7 @@ packages = [{ include = "consumer" }, { include = "propagator" }]
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.3"
 testcontainers = {extras = ["mongodb"], version = "^4.15.0"}
+httpx = "^0.29.0"
 
 [build-system]
 requires = ["poetry-core>=2.0"]
