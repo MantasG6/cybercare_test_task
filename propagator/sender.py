@@ -1,4 +1,3 @@
-import itertools
 import logging
 import random
 import time
@@ -17,7 +16,7 @@ def send_event(client: httpx.Client, url: str, event: dict) -> None:
         logger.info("Sent %s", event)
 
 
-def run(client, url, events, interval, sleep=time.sleep, iterations=None) -> None:
-    for _ in itertools.count() if iterations is None else range(iterations):
+def run(client: httpx.Client, url: str, events: list[dict], interval: float) -> None:
+    while True:
         send_event(client, url, random.choice(events))
-        sleep(interval)
+        time.sleep(interval)

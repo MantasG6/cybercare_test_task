@@ -1,7 +1,9 @@
 import json
 
 import httpx
+import pytest
 
+from propagator import sender
 from propagator.sender import run, send_event
 
 URL = "http://consumer/event"
@@ -9,6 +11,10 @@ EVENTS = [
     {"event_type": "message", "event_payload": "hello"},
     {"event_type": "user_joined", "event_payload": "Peter"},
 ]
+
+
+class StopLoop(Exception):
+    pass
 
 
 def client_returning(status_code, sent):
@@ -19,10 +25,21 @@ def client_returning(status_code, sent):
     return httpx.Client(transport=httpx.MockTransport(handler))
 
 
-def test_run_posts_random_events_from_list_every_interval():
-    sent, sleeps = [], []
+def stop_after(count, sleeps):
+    def sleep(seconds):
+        sleeps.append(seconds)
+        if len(sleeps) == count:
+            raise StopLoop
 
-    run(client_returning(201, sent), URL, EVENTS, 5, sleep=sleeps.append, iterations=3)
+    return sleep
+
+
+def test_run_posts_random_events_from_list_every_interval(monkeypatch):
+    sent, sleeps = [], []
+    monkeypatch.setattr(sender.time, "sleep", stop_after(3, sleeps))
+
+    with pytest.raises(StopLoop):
+        run(client_returning(201, sent), URL, EVENTS, 5)
 
     assert [str(request.url) for request in sent] == [URL] * 3
     assert all(json.loads(request.content) in EVENTS for request in sent)
