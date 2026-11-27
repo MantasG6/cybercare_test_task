@@ -25,25 +25,61 @@ def client_returning(status_code, sent):
     return httpx.Client(transport=httpx.MockTransport(handler))
 
 
-def stop_after(count, sleeps):
-    def sleep(seconds):
-        sleeps.append(seconds)
-        if len(sleeps) == count:
+class FakeClock:
+    def __init__(self, stop_after):
+        self.now = 0.0
+        self.sleeps = []
+        self.stop_after = stop_after
+
+    def monotonic(self):
+        return self.now
+
+    def sleep(self, seconds):
+        self.sleeps.append(seconds)
+        self.now += seconds
+        if len(self.sleeps) == self.stop_after:
             raise StopLoop
 
-    return sleep
+
+@pytest.fixture
+def clock(monkeypatch):
+    clock = FakeClock(stop_after=3)
+    monkeypatch.setattr(sender.time, "monotonic", clock.monotonic)
+    monkeypatch.setattr(sender.time, "sleep", clock.sleep)
+    return clock
 
 
-def test_run_posts_random_events_from_list_every_interval(monkeypatch):
-    sent, sleeps = [], []
-    monkeypatch.setattr(sender.time, "sleep", stop_after(3, sleeps))
+def test_run_posts_random_events_from_list_every_interval(clock):
+    sent = []
 
     with pytest.raises(StopLoop):
         run(client_returning(201, sent), URL, EVENTS, 5)
 
     assert [str(request.url) for request in sent] == [URL] * 3
     assert all(json.loads(request.content) in EVENTS for request in sent)
-    assert sleeps == [5, 5, 5]
+    assert clock.sleeps == [5, 5, 5]
+
+
+def slow_client(clock, seconds):
+    def handler(request):
+        clock.now += seconds
+        return httpx.Response(201)
+
+    return httpx.Client(transport=httpx.MockTransport(handler))
+
+
+def test_run_subtracts_request_time_from_interval(clock):
+    with pytest.raises(StopLoop):
+        run(slow_client(clock, 2), URL, EVENTS, 5)
+
+    assert clock.sleeps == [3, 3, 3]
+
+
+def test_run_does_not_burst_after_slow_request(clock):
+    with pytest.raises(StopLoop):
+        run(slow_client(clock, 7), URL, EVENTS, 5)
+
+    assert clock.sleeps == [0, 0, 0]
 
 
 def test_send_event_does_not_raise_on_error_status():
