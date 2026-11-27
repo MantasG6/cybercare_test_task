@@ -1,5 +1,7 @@
 from pathlib import Path
 
+import pytest
+
 from propagator.events import load_events
 
 EVENTS_FILE = Path(__file__).parent.parent / "data" / "events.json"
@@ -17,3 +19,12 @@ def test_bundled_events_file_has_task_events():
 
     assert len(events) == 11
     assert {"event_type": 123, "event_payload": {}} in events
+
+
+@pytest.mark.parametrize("content", ["[]", '{"event_type": "message", "event_payload": "hello"}'])
+def test_load_events_rejects_empty_or_non_list(tmp_path, content):
+    path = tmp_path / "events.json"
+    path.write_text(content)
+
+    with pytest.raises(ValueError, match="non-empty JSON array"):
+        load_events(path)
