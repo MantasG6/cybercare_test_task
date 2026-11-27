@@ -4,4 +4,7 @@ install:
 test:
 	poetry run pytest
 
-.PHONY: install test
+mongo:
+	docker compose up -d mongo
+
+.PHONY: install test mongo
