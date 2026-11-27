@@ -1,6 +1,7 @@
 import logging
 import random
 import time
+import uuid
 
 import httpx
 
@@ -9,7 +10,7 @@ logger = logging.getLogger(__name__)
 
 def send_event(client: httpx.Client, url: str, event: dict) -> None:
     try:
-        client.post(url, json=event).raise_for_status()
+        client.post(url, json=event, headers={"Idempotency-Key": str(uuid.uuid4())}).raise_for_status()
     except httpx.HTTPError as error:
         logger.warning("Failed to send %s: %s", event, error)
     else:

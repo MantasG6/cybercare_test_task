@@ -1,4 +1,5 @@
 import json
+import uuid
 
 import httpx
 import pytest
@@ -80,6 +81,18 @@ def test_run_should_send_immediately_when_request_overruns_interval(clock):
         run(slow_client(clock, 7), URL, EVENTS, 5)
 
     assert clock.sleeps == [0, 0, 0]
+
+
+def test_send_event_should_send_new_uuid4_idempotency_key_when_sending_each_event():
+    sent = []
+    client = client_returning(201, sent)
+
+    send_event(client, URL, EVENTS[0])
+    send_event(client, URL, EVENTS[0])
+
+    keys = [request.headers["Idempotency-Key"] for request in sent]
+    assert all(uuid.UUID(key).version == 4 for key in keys)
+    assert keys[0] != keys[1]
 
 
 def test_send_event_should_not_raise_when_response_is_error_status():
