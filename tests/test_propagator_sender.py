@@ -49,7 +49,7 @@ def clock(monkeypatch):
     return clock
 
 
-def test_run_posts_random_events_from_list_every_interval(clock):
+def test_run_should_post_random_event_from_list_when_interval_elapses(clock):
     sent = []
 
     with pytest.raises(StopLoop):
@@ -68,25 +68,25 @@ def slow_client(clock, seconds):
     return httpx.Client(transport=httpx.MockTransport(handler))
 
 
-def test_run_subtracts_request_time_from_interval(clock):
+def test_run_should_shorten_wait_when_request_takes_time(clock):
     with pytest.raises(StopLoop):
         run(slow_client(clock, 2), URL, EVENTS, 5)
 
     assert clock.sleeps == [3, 3, 3]
 
 
-def test_run_does_not_burst_after_slow_request(clock):
+def test_run_should_send_immediately_when_request_overruns_interval(clock):
     with pytest.raises(StopLoop):
         run(slow_client(clock, 7), URL, EVENTS, 5)
 
     assert clock.sleeps == [0, 0, 0]
 
 
-def test_send_event_does_not_raise_on_error_status():
+def test_send_event_should_not_raise_when_response_is_error_status():
     send_event(client_returning(422, []), URL, EVENTS[0])
 
 
-def test_send_event_does_not_raise_on_connection_error():
+def test_send_event_should_not_raise_when_connection_fails():
     def handler(request):
         raise httpx.ConnectError("refused")
 
