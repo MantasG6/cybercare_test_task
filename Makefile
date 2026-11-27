@@ -7,4 +7,7 @@ test:
 mongo:
 	docker compose up -d mongo
 
-.PHONY: install test mongo
+consumer:
+	poetry run python -m consumer
+
+.PHONY: install test mongo consumer
