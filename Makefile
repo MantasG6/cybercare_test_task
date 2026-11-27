@@ -10,4 +10,10 @@ mongo:
 consumer:
 	poetry run python -m consumer
 
-.PHONY: install test mongo consumer
+propagator:
+	poetry run python -m propagator
+
+run: mongo
+	$(MAKE) -j2 consumer propagator
+
+.PHONY: install test mongo consumer propagator run
