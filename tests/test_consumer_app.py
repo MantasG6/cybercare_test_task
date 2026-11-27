@@ -3,7 +3,7 @@ from fastapi.testclient import TestClient
 from consumer.app import create_app
 
 
-def test_valid_event_is_stored(collection):
+def test_post_event_should_store_event_when_event_is_valid(collection):
     client = TestClient(create_app(collection))
 
     response = client.post("/event", json={"event_type": "message", "event_payload": "hello"})
@@ -15,7 +15,7 @@ def test_valid_event_is_stored(collection):
     }
 
 
-def test_invalid_event_is_rejected_and_not_stored(collection):
+def test_post_event_should_return_422_and_not_store_when_event_is_invalid(collection):
     client = TestClient(create_app(collection))
 
     response = client.post("/event", json={"event_type": 123, "event_payload": {}})
