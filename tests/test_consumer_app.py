@@ -44,3 +44,14 @@ def test_post_event_should_store_each_without_key_field_when_idempotency_key_is_
     assert [response.status_code for response in responses] == [201, 201]
     assert collection.count_documents({}) == 2
     assert collection.count_documents({"idempotency_key": {"$exists": True}}) == 0
+
+
+def test_post_event_should_store_each_without_key_field_when_idempotency_key_is_blank(collection):
+    client = TestClient(create_app(collection))
+    event = {"event_type": "message", "event_payload": "hello"}
+
+    responses = [client.post("/event", json=event, headers={"Idempotency-Key": ""}) for _ in range(2)]
+
+    assert [response.status_code for response in responses] == [201, 201]
+    assert collection.count_documents({}) == 2
+    assert collection.count_documents({"idempotency_key": {"$exists": True}}) == 0

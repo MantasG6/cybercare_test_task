@@ -17,7 +17,7 @@ def create_indexes(collection: Collection) -> None:
 
 def save_event(collection: Collection, event: Event, idempotency_key: str | None = None) -> None:
     document = {**event.model_dump(), "received_at": datetime.now(UTC)}
-    if idempotency_key is not None:
+    if idempotency_key:  # A blank header counts as no key.
         document["idempotency_key"] = idempotency_key
     try:
         collection.insert_one(document)
