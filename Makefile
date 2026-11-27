@@ -7,4 +7,13 @@ test:
 mongo:
 	docker compose up -d mongo
 
-.PHONY: install test mongo
+consumer:
+	poetry run python -m consumer
+
+propagator:
+	poetry run python -m propagator
+
+run: mongo
+	$(MAKE) -j2 consumer propagator
+
+.PHONY: install test mongo consumer propagator run
