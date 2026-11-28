@@ -10,3 +10,4 @@
 - **Idempotency Key**: a value in the optional `Idempotency-Key` header of `POST /event` that identifies one send. The Consumer stores at most one Stored Event per key.
 - **Event Queue**: the bounded in-memory queue between `POST /event` and MongoDB. Valid Events wait there until a worker stores them; when it is full, requests get `503`. Its events are lost if the Consumer crashes or is killed.
 - **Rate Limit**: the global cap on `/event` requests the Consumer accepts, set as requests per second with a burst; requests over it get `429` and are not stored.
+- **Backoff**: the wait before the Propagator resends an Event the Consumer rejected with `429` or `503`, with the same Idempotency Key. It is the `Retry-After` seconds if given, otherwise the Interval doubled on each rejection in a row, capped at `max_backoff_seconds`. It replaces the normal wait.
