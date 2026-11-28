@@ -17,7 +17,7 @@ def create_app(collection: Collection, limiter: TokenBucket, max_in_flight: int)
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
-        # One worker thread per in-flight request, so a 503 means every thread is busy.
+        # Size the shared worker thread pool to the cap on concurrent /event requests.
         anyio.to_thread.current_default_thread_limiter().total_tokens = max_in_flight
         yield
 
