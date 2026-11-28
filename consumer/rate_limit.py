@@ -22,3 +22,8 @@ class TokenBucket:
                 self._tokens -= 1
                 return 0.0
             return (1 - self._tokens) / self.rate
+
+    def release(self) -> None:
+        """Give back a token taken by a request that was turned away for another reason."""
+        with self._lock:
+            self._tokens = min(self.capacity, self._tokens + 1)

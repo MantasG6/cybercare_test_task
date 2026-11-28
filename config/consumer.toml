@@ -9,3 +9,6 @@ collection = "events"
 [rate_limit]
 requests_per_second = 10
 burst = 20
+
+[concurrency]
+max_in_flight = 40

@@ -52,6 +52,7 @@ Each service reads a TOML file. Pass a different one with `--config PATH`, for e
 | `mongo.database`, `mongo.collection` | Where events are stored |
 | `rate_limit.requests_per_second` | Rate at which `POST /event` allows requests, shared by all clients (default `10`) |
 | `rate_limit.burst` | Requests allowed at once before the rate applies (default `20`) |
+| `concurrency.max_in_flight` | `POST /event` events stored at the same time; also the size of the worker thread pool (default `40`) |
 
 ## API
 
@@ -63,6 +64,7 @@ Each service reads a TOML file. Pass a different one with `--config PATH`, for e
 
 Both fields must be strings, and no other fields are allowed. Valid events get `201` and are stored with a `received_at` timestamp; anything else gets `422`.
 Requests over the rate limit get `429` with a `Retry-After` header (whole seconds until the next request is allowed) and nothing is stored. The limit is checked before validation, so invalid requests count too.
+When `max_in_flight` valid events are already being stored, the next one gets `503` straight away and nothing is stored. The `503` carries no `Retry-After`, so the propagator waits longer on each rejection in a row. Only the store call takes a slot, so requests that are still uploading or that get `422` never hold one. The rate limit is checked first, so a request rejected with `429` does not take a slot, and a request rejected with `503` gives its rate-limit token back.
 The task shows the template inside `[ ]`. That is read as "an event looks like this", because the propagator sends one event at a time.
 
 An optional `Idempotency-Key` header identifies one send. A request that repeats a stored key also gets `201`, but the event is not stored again. The key is saved as `idempotency_key`. Requests without the header are stored every time, without that field.
