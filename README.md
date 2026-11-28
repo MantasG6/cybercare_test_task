@@ -49,6 +49,8 @@ Each service reads a TOML file. Pass a different one with `--config PATH`, for e
 | `host`, `port` | Address the HTTP API listens on |
 | `mongo.uri` | MongoDB connection string |
 | `mongo.database`, `mongo.collection` | Where events are stored |
+| `rate_limit.requests_per_second` | Rate at which `POST /event` allows requests, shared by all clients (default `10`) |
+| `rate_limit.burst` | Requests allowed at once before the rate applies (default `20`) |
 
 ## API
 
@@ -59,6 +61,7 @@ Each service reads a TOML file. Pass a different one with `--config PATH`, for e
 ```
 
 Both fields must be strings, and no other fields are allowed. Valid events get `201` and are stored with a `received_at` timestamp; anything else gets `422`.
+Requests over the rate limit get `429` with a `Retry-After` header (whole seconds until the next request is allowed) and nothing is stored. The limit is checked before validation, so invalid requests count too.
 The task shows the template inside `[ ]`. That is read as "an event looks like this", because the propagator sends one event at a time.
 
 An optional `Idempotency-Key` header identifies one send. A request that repeats a stored key also gets `201`, but the event is not stored again. The key is saved as `idempotency_key`. Requests without the header are stored every time, without that field.
