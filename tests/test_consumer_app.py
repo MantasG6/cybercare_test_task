@@ -67,7 +67,7 @@ def test_post_event_should_return_429_and_not_store_when_burst_exceeded(collecti
     assert collection.count_documents({}) == 3
 
 
-def test_post_event_should_round_retry_after_up_when_next_token_is_seconds_away(collection):
+def test_post_event_should_round_up_retry_after_when_next_token_is_seconds_away(collection):
     client = client_for(collection, rate=0.4, burst=1)
     client.post("/event", json=VALID_EVENT)
 
