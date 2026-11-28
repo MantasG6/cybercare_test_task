@@ -187,7 +187,7 @@ def test_post_event_should_return_503_and_not_store_when_max_in_flight_requests_
             response = client.post("/event", json=VALID_EVENT)
 
         assert response.status_code == 503
-        assert response.headers["Retry-After"] == "1"
+        assert "Retry-After" not in response.headers
         assert held_statuses == [201, 201]
         assert collection.count_documents({}) == 2
         assert client.post("/event", json=VALID_EVENT).status_code == 201

@@ -38,7 +38,8 @@ def create_app(collection: Collection, limiter: TokenBucket, max_in_flight: int)
         # No await between the check and the increment, so the event loop needs no lock.
         nonlocal in_flight
         if in_flight >= max_in_flight:
-            raise HTTPException(status_code=503, headers={"Retry-After": "1"})
+            # No Retry-After, so the Propagator's doubling backoff applies while the overload lasts.
+            raise HTTPException(status_code=503)
         in_flight += 1
         try:
             await anyio.to_thread.run_sync(save_event, collection, event, idempotency_key)

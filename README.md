@@ -64,7 +64,7 @@ Each service reads a TOML file. Pass a different one with `--config PATH`, for e
 
 Both fields must be strings, and no other fields are allowed. Valid events get `201` and are stored with a `received_at` timestamp; anything else gets `422`.
 Requests over the rate limit get `429` with a `Retry-After` header (whole seconds until the next request is allowed) and nothing is stored. The limit is checked before validation, so invalid requests count too.
-When `max_in_flight` valid events are already being stored, the next one gets `503` with `Retry-After: 1` straight away and nothing is stored. Only the store call takes a slot, so requests that are still uploading or that get `422` never hold one. The rate limit is checked first, so a request rejected with `429` does not take a slot.
+When `max_in_flight` valid events are already being stored, the next one gets `503` straight away and nothing is stored. The `503` carries no `Retry-After`, so the propagator waits longer on each rejection in a row. Only the store call takes a slot, so requests that are still uploading or that get `422` never hold one. The rate limit is checked first, so a request rejected with `429` does not take a slot.
 The task shows the template inside `[ ]`. That is read as "an event looks like this", because the propagator sends one event at a time.
 
 An optional `Idempotency-Key` header identifies one send. A request that repeats a stored key also gets `201`, but the event is not stored again. The key is saved as `idempotency_key`. Requests without the header are stored every time, without that field.
