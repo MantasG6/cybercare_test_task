@@ -9,3 +9,7 @@ collection = "events"
 [rate_limit]
 requests_per_second = 10
 burst = 20
+
+[queue]
+max_size = 20
+workers = 1

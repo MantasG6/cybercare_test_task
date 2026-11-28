@@ -5,12 +5,18 @@ import uvicorn
 from pymongo import MongoClient
 
 from consumer.app import create_app
+from consumer.event_queue import EventQueue, Store
 from consumer.rate_limit import TokenBucket
 
 
 def build_limiter(config: dict) -> TokenBucket:
     rate_limit = {"requests_per_second": 10, "burst": 20} | config.get("rate_limit", {})
     return TokenBucket(rate_limit["requests_per_second"], rate_limit["burst"])
+
+
+def build_event_queue(config: dict, store: Store) -> EventQueue:
+    queue = {"max_size": 20, "workers": 1} | config.get("queue", {})
+    return EventQueue(store, queue["max_size"], queue["workers"])
 
 
 def main() -> None:
