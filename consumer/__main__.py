@@ -1,5 +1,6 @@
 import argparse
 import tomllib
+from functools import partial
 
 import uvicorn
 from pymongo import MongoClient
@@ -7,6 +8,7 @@ from pymongo import MongoClient
 from consumer.app import create_app
 from consumer.event_queue import EventQueue, Store
 from consumer.rate_limit import TokenBucket
+from consumer.store import save_event
 
 
 def build_limiter(config: dict) -> TokenBucket:
@@ -29,7 +31,9 @@ def main() -> None:
 
     mongo = config["mongo"]
     collection = MongoClient(mongo["uri"])[mongo["database"]][mongo["collection"]]
-    uvicorn.run(create_app(collection, build_limiter(config)), host=config["host"], port=config["port"])
+    events = build_event_queue(config, partial(save_event, collection))
+    app = create_app(collection, build_limiter(config), events)
+    uvicorn.run(app, host=config["host"], port=config["port"])
 
 
 if __name__ == "__main__":
