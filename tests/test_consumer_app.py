@@ -113,6 +113,8 @@ def test_post_event_should_reject_exactly_one_when_concurrent_requests_exceed_bu
 
     assert sorted(statuses) == [201] * 10 + [429]
     assert collection.count_documents({}) == 10
+
+
 def test_post_event_should_store_once_and_return_201_when_idempotency_key_repeats(collection):
     client = client_for(collection)
     event = {"event_type": "message", "event_payload": "hello"}
