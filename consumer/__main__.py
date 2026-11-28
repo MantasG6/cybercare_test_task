@@ -13,6 +13,10 @@ def build_limiter(config: dict) -> TokenBucket:
     return TokenBucket(rate_limit["requests_per_second"], rate_limit["burst"])
 
 
+def read_max_in_flight(config: dict) -> int:
+    return config.get("concurrency", {}).get("max_in_flight", 40)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Event consumer")
     parser.add_argument("--config", default="config/consumer.toml")
@@ -23,7 +27,7 @@ def main() -> None:
 
     mongo = config["mongo"]
     collection = MongoClient(mongo["uri"])[mongo["database"]][mongo["collection"]]
-    uvicorn.run(create_app(collection, build_limiter(config)), host=config["host"], port=config["port"])
+    uvicorn.run(create_app(collection, build_limiter(config), read_max_in_flight(config)), host=config["host"], port=config["port"])
 
 
 if __name__ == "__main__":

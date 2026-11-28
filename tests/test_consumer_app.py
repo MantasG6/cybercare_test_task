@@ -1,9 +1,12 @@
 import threading
+from contextlib import contextmanager
 
+import pytest
 from fastapi.testclient import TestClient
 
 from consumer.app import create_app
 from consumer.rate_limit import TokenBucket
+from consumer.store import save_event
 
 VALID_EVENT = {"event_type": "message", "event_payload": "hello"}
 INVALID_EVENT = {"event_type": 123, "event_payload": {}}
@@ -17,8 +20,8 @@ class FakeClock:
         return self.now
 
 
-def client_for(collection, rate=10, burst=20, clock=None):
-    return TestClient(create_app(collection, TokenBucket(rate, burst, clock or FakeClock())))
+def client_for(collection, rate=10, burst=20, clock=None, max_in_flight=40):
+    return TestClient(create_app(collection, TokenBucket(rate, burst, clock or FakeClock()), max_in_flight))
 
 
 def post_concurrently(client, count):
@@ -35,6 +38,35 @@ def post_concurrently(client, count):
     for thread in threads:
         thread.join()
     return statuses
+
+
+@contextmanager
+def held_in_store(monkeypatch, client, count):
+    """Keep `count` POST /event requests blocked inside the store until the block exits; yields their statuses."""
+    entered = threading.Semaphore(0)
+    release = threading.Event()
+    statuses = []
+
+    def blocking_save(*args):
+        entered.release()
+        release.wait()
+        save_event(*args)
+
+    def post():
+        statuses.append(client.post("/event", json=VALID_EVENT).status_code)
+
+    monkeypatch.setattr("consumer.app.save_event", blocking_save)
+    threads = [threading.Thread(target=post) for _ in range(count)]
+    for thread in threads:
+        thread.start()
+    try:
+        for _ in range(count):
+            assert entered.acquire(timeout=5)
+        yield statuses
+    finally:
+        release.set()
+        for thread in threads:
+            thread.join()
 
 
 def test_post_event_should_store_event_when_event_is_valid(collection):
@@ -146,3 +178,52 @@ def test_post_event_should_store_each_without_key_field_when_idempotency_key_is_
     assert [response.status_code for response in responses] == [201, 201]
     assert collection.count_documents({}) == 2
     assert collection.count_documents({"idempotency_key": {"$exists": True}}) == 0
+
+
+def test_post_event_should_return_503_and_not_store_when_max_in_flight_requests_are_in_progress(collection, monkeypatch):
+    with client_for(collection, max_in_flight=2) as client:
+        with held_in_store(monkeypatch, client, 2) as held_statuses:
+            response = client.post("/event", json=VALID_EVENT)
+
+        assert response.status_code == 503
+        assert response.headers["Retry-After"] == "1"
+        assert held_statuses == [201, 201]
+        assert collection.count_documents({}) == 2
+        assert client.post("/event", json=VALID_EVENT).status_code == 201
+
+
+def test_post_event_should_free_in_flight_slots_when_requests_are_invalid_or_valid(collection, monkeypatch):
+    with client_for(collection, max_in_flight=2) as client:
+        assert client.post("/event", json=INVALID_EVENT).status_code == 422
+        assert client.post("/event", json=VALID_EVENT).status_code == 201
+
+        with held_in_store(monkeypatch, client, 2) as held_statuses:
+            pass
+
+        assert held_statuses == [201, 201]
+
+
+def test_post_event_should_free_in_flight_slot_when_store_raises(collection, monkeypatch):
+    def failing_save(*args):
+        raise RuntimeError("store failed")
+
+    with client_for(collection, max_in_flight=1) as client:
+        monkeypatch.setattr("consumer.app.save_event", failing_save)
+        with pytest.raises(RuntimeError):
+            client.post("/event", json=VALID_EVENT)
+
+        with held_in_store(monkeypatch, client, 1) as held_statuses:
+            pass
+
+        assert held_statuses == [201]
+
+
+def test_post_event_should_return_429_without_taking_in_flight_slot_when_both_limits_are_exceeded(collection, monkeypatch):
+    clock = FakeClock()
+    with client_for(collection, rate=10, burst=1, clock=clock, max_in_flight=1) as client:
+        with held_in_store(monkeypatch, client, 1):
+            response = client.post("/event", json=VALID_EVENT)
+
+        assert response.status_code == 429
+        clock.now = 0.1
+        assert client.post("/event", json=VALID_EVENT).status_code == 201

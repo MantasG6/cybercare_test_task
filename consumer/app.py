@@ -10,17 +10,27 @@ from consumer.rate_limit import TokenBucket
 from consumer.store import create_indexes, save_event
 
 
-def create_app(collection: Collection, limiter: TokenBucket) -> FastAPI:
+def create_app(collection: Collection, limiter: TokenBucket, max_in_flight: int) -> FastAPI:
     create_indexes(collection)
     app = FastAPI()
+    in_flight = 0
 
     @app.middleware("http")
-    async def rate_limit(request: Request, call_next):
-        if request.url.path == "/event":
-            wait = limiter.acquire()
-            if wait:
-                return Response(status_code=429, headers={"Retry-After": str(max(1, math.ceil(wait)))})
-        return await call_next(request)
+    async def limit(request: Request, call_next):
+        nonlocal in_flight
+        if request.url.path != "/event":
+            return await call_next(request)
+        wait = limiter.acquire()
+        if wait:
+            return Response(status_code=429, headers={"Retry-After": str(max(1, math.ceil(wait)))})
+        # No await between the check and the increment, so the event loop needs no lock.
+        if in_flight >= max_in_flight:
+            return Response(status_code=503, headers={"Retry-After": "1"})
+        in_flight += 1
+        try:
+            return await call_next(request)
+        finally:
+            in_flight -= 1
 
     @app.post("/event", status_code=201)
     def post_event(event: Event, idempotency_key: Annotated[str | None, Header()] = None) -> None:
