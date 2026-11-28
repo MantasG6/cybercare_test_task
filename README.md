@@ -64,6 +64,9 @@ Both fields must be strings, and no other fields are allowed. Valid events get `
 Requests over the rate limit get `429` with a `Retry-After` header (whole seconds until the next request is allowed) and nothing is stored. The limit is checked before validation, so invalid requests count too.
 The task shows the template inside `[ ]`. That is read as "an event looks like this", because the propagator sends one event at a time.
 
+An optional `Idempotency-Key` header identifies one send. A request that repeats a stored key also gets `201`, but the event is not stored again. The key is saved as `idempotency_key`. Requests without the header are stored every time, without that field.
+The propagator sends a new UUID4 key with every event. The key travels only in the header, so the body stays as above.
+
 To see what has been stored:
 
 ```sh
