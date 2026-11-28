@@ -54,7 +54,7 @@ def test_run_should_post_random_event_from_list_when_interval_elapses(clock):
     sent = []
 
     with pytest.raises(StopLoop):
-        run(client_returning(201, sent), URL, EVENTS, 5)
+        run(client_returning(202, sent), URL, EVENTS, 5)
 
     assert [str(request.url) for request in sent] == [URL] * 3
     assert all(json.loads(request.content) in EVENTS for request in sent)
@@ -64,7 +64,7 @@ def test_run_should_post_random_event_from_list_when_interval_elapses(clock):
 def slow_client(clock, seconds):
     def handler(request):
         clock.now += seconds
-        return httpx.Response(201)
+        return httpx.Response(202)
 
     return httpx.Client(transport=httpx.MockTransport(handler))
 
@@ -85,7 +85,7 @@ def test_run_should_send_immediately_when_request_overruns_interval(clock):
 
 def test_send_event_should_send_new_uuid4_idempotency_key_when_sending_each_event():
     sent = []
-    client = client_returning(201, sent)
+    client = client_returning(202, sent)
 
     send_event(client, URL, EVENTS[0])
     send_event(client, URL, EVENTS[0])
