@@ -7,20 +7,49 @@ import httpx
 
 logger = logging.getLogger(__name__)
 
+BACKOFF_STATUSES = {429, 503}
 
-def send_event(client: httpx.Client, url: str, event: dict) -> None:
+
+def send_event(client: httpx.Client, url: str, event: dict, idempotency_key: str) -> httpx.Response | None:
+    """Send one event. Return the response, or None if no response came back."""
     try:
-        client.post(url, json=event, headers={"Idempotency-Key": str(uuid.uuid4())}).raise_for_status()
+        response = client.post(url, json=event, headers={"Idempotency-Key": idempotency_key})
+        response.raise_for_status()
+    except httpx.HTTPStatusError as error:
+        logger.warning("Failed to send %s: %s", event, error)
+        return error.response
     except httpx.HTTPError as error:
         logger.warning("Failed to send %s: %s", event, error)
+        return None
+    logger.info("Sent %s", event)
+    return response
+
+
+def backoff_seconds(response: httpx.Response, interval: float, rejections: int, max_backoff: float) -> float:
+    retry_after = response.headers.get("Retry-After", "")
+    if retry_after.isascii() and retry_after.isdigit():
+        seconds, reason = int(retry_after), "Retry-After"
     else:
-        logger.info("Sent %s", event)
+        seconds, reason = interval * 2**rejections, f"rejection {rejections} in a row"
+    seconds = min(seconds, max_backoff)
+    logger.info("Backing off %s s after %s (%s)", seconds, response.status_code, reason)
+    return seconds
 
 
-def run(client: httpx.Client, url: str, events: list[dict], interval: float) -> None:
+def run(client: httpx.Client, url: str, events: list[dict], interval: float, max_backoff: float) -> None:
     next_send = time.monotonic()
+    rejections = 0
     while True:
-        send_event(client, url, random.choice(events))
+        if rejections == 0:
+            event, key = random.choice(events), str(uuid.uuid4())
+        response = send_event(client, url, event, key)
+        if response is not None and response.status_code in BACKOFF_STATUSES:
+            # Resend the same event with the same key. The backoff replaces the normal wait.
+            rejections += 1
+            time.sleep(backoff_seconds(response, interval, rejections, max_backoff))
+            next_send = time.monotonic()
+            continue
+        rejections = 0
         # Schedule from the previous send, not from now, so request time does not stretch the period.
         # If a send overran the interval, start counting from now instead of sending in a burst.
         next_send = max(next_send + interval, time.monotonic())

@@ -18,7 +18,13 @@ def main() -> None:
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
     with httpx.Client() as client:
-        run(client, config["endpoint_url"], load_events(config["events_file"]), config["interval_seconds"])
+        run(
+            client,
+            config["endpoint_url"],
+            load_events(config["events_file"]),
+            config["interval_seconds"],
+            config.get("max_backoff_seconds", 30),
+        )
 
 
 if __name__ == "__main__":

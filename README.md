@@ -41,6 +41,7 @@ Each service reads a TOML file. Pass a different one with `--config PATH`, for e
 | `interval_seconds` | Seconds between two sent events |
 | `endpoint_url` | URL the events are POSTed to |
 | `events_file` | Path to the JSON array of events to choose from |
+| `max_backoff_seconds` | Longest wait before resending an event the consumer rejected with `429` or `503` (default `30`) |
 
 `config/consumer.toml`
 
@@ -66,6 +67,7 @@ The task shows the template inside `[ ]`. That is read as "an event looks like t
 
 An optional `Idempotency-Key` header identifies one send. A request that repeats a stored key also gets `201`, but the event is not stored again. The key is saved as `idempotency_key`. Requests without the header are stored every time, without that field.
 The propagator sends a new UUID4 key with every event. The key travels only in the header, so the body stays as above.
+If a send gets `429` or `503`, the propagator backs off and resends the same event with the same key. It waits for `Retry-After` seconds if given, otherwise `interval_seconds` doubled on each rejection in a row, never longer than `max_backoff_seconds`. Any other failure is logged and the next event is sent after the normal interval.
 
 To see what has been stored:
 
