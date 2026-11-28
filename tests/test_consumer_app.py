@@ -204,6 +204,14 @@ def test_post_event_should_free_in_flight_slots_when_requests_are_invalid_or_val
         assert held_statuses == [201, 201]
 
 
+def test_post_event_should_return_422_when_event_is_invalid_and_max_in_flight_requests_are_in_progress(collection, monkeypatch):
+    with client_for(collection, max_in_flight=1) as client:
+        with held_in_store(monkeypatch, client, 1):
+            response = client.post("/event", json=INVALID_EVENT)
+
+        assert response.status_code == 422
+
+
 def test_post_event_should_free_in_flight_slot_when_store_raises(collection, monkeypatch):
     def failing_save(*args):
         raise RuntimeError("store failed")
