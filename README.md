@@ -3,7 +3,7 @@
 Two Python services:
 
 - **Propagator** (`propagator/`) sends a random event from an events file to an HTTP endpoint every N seconds.
-- **Consumer** (`consumer/`) accepts events on `POST /event`, validates them and stores valid ones in MongoDB.
+- **Consumer** (`consumer/`) accepts events on `POST /event`, validates them, queues valid ones and stores them in MongoDB from background workers.
 
 ## Prerequisites
 
@@ -51,6 +51,8 @@ Each service reads a TOML file. Pass a different one with `--config PATH`, for e
 | `mongo.database`, `mongo.collection` | Where events are stored |
 | `rate_limit.requests_per_second` | Rate at which `POST /event` allows requests, shared by all clients (default `10`) |
 | `rate_limit.burst` | Requests allowed at once before the rate applies (default `20`) |
+| `queue.max_size` | Events the queue holds before `POST /event` answers `503` (default `20`) |
+| `queue.workers` | Worker threads that store queued events (default `1`, which keeps insert order) |
 
 ## API
 
@@ -60,11 +62,13 @@ Each service reads a TOML file. Pass a different one with `--config PATH`, for e
 {"event_type": "message", "event_payload": "hello"}
 ```
 
-Both fields must be strings, and no other fields are allowed. Valid events get `201` and are stored with a `received_at` timestamp; anything else gets `422`.
+Both fields must be strings, and no other fields are allowed. Valid events are queued and get `202` at once; a worker then stores them with a `received_at` timestamp. Anything else gets `422`.
 Requests over the rate limit get `429` with a `Retry-After` header (whole seconds until the next request is allowed) and nothing is stored. The limit is checked before validation, so invalid requests count too.
+If the queue is full, the request gets `503` with `Retry-After: 1` and the event is not queued. The rate limit is checked first, so a request over it gets `429` even when the queue is full.
+On a graceful shutdown (Ctrl+C) the consumer stops taking requests and stores every queued event before it exits. Events still in the queue are **lost** if the process crashes or is killed.
 The task shows the template inside `[ ]`. That is read as "an event looks like this", because the propagator sends one event at a time.
 
-An optional `Idempotency-Key` header identifies one send. A request that repeats a stored key also gets `201`, but the event is not stored again. The key is saved as `idempotency_key`. Requests without the header are stored every time, without that field.
+An optional `Idempotency-Key` header identifies one send. A request that repeats a stored key also gets `202`, but the event is not stored again. The key is saved as `idempotency_key`. Requests without the header are stored every time, without that field.
 The propagator sends a new UUID4 key with every event. The key travels only in the header, so the body stays as above.
 
 To see what has been stored:
