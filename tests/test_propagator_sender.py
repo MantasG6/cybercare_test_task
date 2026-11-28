@@ -174,11 +174,16 @@ def test_run_should_move_on_to_new_key_after_interval_when_send_fails_without_ba
     assert len({request.headers["Idempotency-Key"] for request in sent}) == 3
 
 
-def test_run_should_move_on_after_interval_when_connection_fails(clock):
+def test_run_should_resend_same_event_with_same_key_after_doubling_wait_when_no_response_comes_back(clock):
+    sent = []
+
     def handler(request):
+        sent.append(request)
         raise httpx.ConnectError("refused")
 
     with pytest.raises(StopLoop):
         run(httpx.Client(transport=httpx.MockTransport(handler)), URL, EVENTS, 5, 30)
 
-    assert clock.sleeps == [5, 5, 5]
+    assert clock.sleeps == [10, 20, 30]
+    assert len({request.content for request in sent}) == 1
+    assert len({request.headers["Idempotency-Key"] for request in sent}) == 1

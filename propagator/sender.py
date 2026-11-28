@@ -25,14 +25,15 @@ def send_event(client: httpx.Client, url: str, event: dict, idempotency_key: str
     return response
 
 
-def backoff_seconds(response: httpx.Response, interval: float, rejections: int, max_backoff: float) -> float:
-    retry_after = response.headers.get("Retry-After", "")
+def backoff_seconds(response: httpx.Response | None, interval: float, rejections: int, max_backoff: float) -> float:
+    retry_after = response.headers.get("Retry-After", "") if response is not None else ""
     if retry_after.isascii() and retry_after.isdigit():
         seconds, reason = int(retry_after), "Retry-After"
     else:
         seconds, reason = interval * 2**rejections, f"rejection {rejections} in a row"
     seconds = min(seconds, max_backoff)
-    logger.info("Backing off %s s after %s (%s)", seconds, response.status_code, reason)
+    cause = response.status_code if response is not None else "no response"
+    logger.info("Backing off %s s after %s (%s)", seconds, cause, reason)
     return seconds
 
 
@@ -43,8 +44,9 @@ def run(client: httpx.Client, url: str, events: list[dict], interval: float, max
         if rejections == 0:
             event, key = random.choice(events), str(uuid.uuid4())
         response = send_event(client, url, event, key)
-        if response is not None and response.status_code in BACKOFF_STATUSES:
+        if response is None or response.status_code in BACKOFF_STATUSES:
             # Resend the same event with the same key. The backoff replaces the normal wait.
+            # With no response the event may or may not be stored; the key keeps the resend from storing it twice.
             rejections += 1
             time.sleep(backoff_seconds(response, interval, rejections, max_backoff))
             next_send = time.monotonic()
