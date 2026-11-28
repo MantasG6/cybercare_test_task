@@ -1,7 +1,9 @@
 import math
 
+from contextlib import asynccontextmanager
 from typing import Annotated
 
+import anyio.to_thread
 from fastapi import FastAPI, Header, Request, Response
 from pymongo.collection import Collection
 
@@ -12,7 +14,14 @@ from consumer.store import create_indexes, save_event
 
 def create_app(collection: Collection, limiter: TokenBucket, max_in_flight: int) -> FastAPI:
     create_indexes(collection)
-    app = FastAPI()
+
+    @asynccontextmanager
+    async def lifespan(app: FastAPI):
+        # One worker thread per in-flight request, so a 503 means every thread is busy.
+        anyio.to_thread.current_default_thread_limiter().total_tokens = max_in_flight
+        yield
+
+    app = FastAPI(lifespan=lifespan)
     in_flight = 0
 
     @app.middleware("http")

@@ -1,6 +1,7 @@
 import threading
 from contextlib import contextmanager
 
+import anyio.to_thread
 import pytest
 from fastapi.testclient import TestClient
 
@@ -227,3 +228,11 @@ def test_post_event_should_return_429_without_taking_in_flight_slot_when_both_li
         assert response.status_code == 429
         clock.now = 0.1
         assert client.post("/event", json=VALID_EVENT).status_code == 201
+
+
+def test_create_app_should_size_default_thread_limiter_to_max_in_flight_when_app_starts(collection):
+    async def total_tokens():
+        return anyio.to_thread.current_default_thread_limiter().total_tokens
+
+    with client_for(collection, max_in_flight=5) as client:
+        assert client.portal.call(total_tokens) == 5
