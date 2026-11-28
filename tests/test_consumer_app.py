@@ -244,3 +244,11 @@ def test_create_app_should_size_default_thread_limiter_to_max_in_flight_when_app
 
     with client_for(collection, max_in_flight=5) as client:
         assert client.portal.call(total_tokens) == 5
+
+
+def test_post_event_should_return_rate_limit_token_when_request_gets_503(collection, monkeypatch):
+    with client_for(collection, rate=10, burst=2, max_in_flight=1) as client:
+        with held_in_store(monkeypatch, client, 1):
+            assert client.post("/event", json=VALID_EVENT).status_code == 503
+
+        assert client.post("/event", json=VALID_EVENT).status_code == 201

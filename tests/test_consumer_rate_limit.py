@@ -43,3 +43,20 @@ def test_acquire_should_not_exceed_capacity_when_idle_for_long():
 
     assert results[:2] == [0, 0]
     assert results[2] > 0
+
+
+def test_release_should_return_token_when_one_was_taken():
+    bucket = TokenBucket(rate=1, capacity=1, clock=FakeClock())
+    bucket.acquire()
+
+    bucket.release()
+
+    assert bucket.acquire() == 0
+
+
+def test_release_should_not_exceed_capacity_when_bucket_is_full():
+    bucket = TokenBucket(rate=1, capacity=1, clock=FakeClock())
+
+    bucket.release()
+
+    assert [bucket.acquire() == 0 for _ in range(2)] == [True, False]
